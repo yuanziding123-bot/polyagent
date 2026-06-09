@@ -88,14 +88,15 @@ def build_analysis_graph(
     forecaster: CandleForecaster | None = None,
     memory=None,
     store=None,
+    rag=None,
 ):
     """Layer 1 + Layer 2: data collection then signal → decision → reflection.
 
     ``llm`` drives the signal and reflection agents (decision is deterministic).
-    ``memory`` (optional) injects past lessons into the signal prompt.
+    ``memory`` injects past lessons; ``rag`` injects similar past markets.
     """
     nodes = _collector_nodes(client, news_client, config, scorer, forecaster, store=store)
-    nodes["signal"] = create_signal_agent(llm, memory=memory)
+    nodes["signal"] = create_signal_agent(llm, memory=memory, rag=rag)
     nodes["decision"] = create_decision_agent(config)
     nodes["reflection"] = create_reflection_agent(llm)
 
@@ -117,15 +118,16 @@ def build_trading_graph(
     forecaster: CandleForecaster | None = None,
     memory=None,
     store=None,
+    rag=None,
 ):
     """Layer 1 + 2 + 3: analysis then execution.
 
     ``execute_node`` is built by the orchestrator so it can close over the
     persistent portfolio + circuit breaker (state that outlives a single run).
-    ``memory`` (optional) injects past lessons into the signal prompt.
+    ``memory`` injects past lessons; ``rag`` injects similar past markets.
     """
     nodes = _collector_nodes(client, news_client, config, scorer, forecaster, store=store)
-    nodes["signal"] = create_signal_agent(llm, memory=memory)
+    nodes["signal"] = create_signal_agent(llm, memory=memory, rag=rag)
     nodes["decision"] = create_decision_agent(config)
     nodes["reflection"] = create_reflection_agent(llm)
     nodes["execute"] = execute_node

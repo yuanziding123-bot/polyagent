@@ -25,7 +25,7 @@ context. Do not invent facts. Track the money rather than forecasting the event 
 from priors. Return your estimate as structured output."""
 
 
-def _build_prompt(state: dict, lessons: list[str]) -> str:
+def _build_prompt(state: dict, lessons: list[str], similar: list[dict]) -> str:
     raw = state.get("raw", {})
     factors = (raw.get("features", {}) or {}).get("factors", {})
     price, price_source = effective_market_price(state)
@@ -33,9 +33,18 @@ def _build_prompt(state: dict, lessons: list[str]) -> str:
     if lessons:
         memory = "=== Lessons from past resolved trades (carry-forward) ===\n" + \
             "\n".join(f"- {l}" for l in lessons) + "\n\n"
+    rag = ""
+    if similar:
+        lines = []
+        for s in similar:
+            meta = s.get("metadata", {})
+            won = meta.get("resolved_winner")
+            tag = f" [resolved: {won}]" if won else ""
+            lines.append(f"- {meta.get('question', s.get('document', ''))}{tag}")
+        rag = "=== Semantically similar past markets (Chroma RAG) ===\n" + "\n".join(lines) + "\n\n"
     return (
         f"{_SYSTEM}\n\n"
-        f"{memory}"
+        f"{memory}{rag}"
         f"=== Market ===\n{state.get('market_context', '')}\n\n"
         f"=== Price ===\n{state.get('price_report', '')}\n"
         f"=== Volume ===\n{state.get('volume_report', '')}\n"
@@ -48,13 +57,18 @@ def _build_prompt(state: dict, lessons: list[str]) -> str:
     )
 
 
-def create_signal_agent(llm, memory=None) -> Node:
-    """``memory`` (a MemoryStore, optional) injects recent lessons into the prompt."""
+def create_signal_agent(llm, memory=None, rag=None) -> Node:
+    """``memory`` injects recent lessons; ``rag`` (a ChromaRAG) injects
+    semantically similar past markets — both optional."""
     structured = llm.with_structured_output(Signal)
 
     def node(state: dict) -> dict[str, Any]:
         lessons = memory.recent_lessons(question=state.get("question")) if memory is not None else []
-        signal: Signal = structured.invoke(_build_prompt(state, lessons))
+        similar = (
+            rag.query_similar(state.get("question", ""), exclude_id=state.get("condition_id"))
+            if rag is not None else []
+        )
+        signal: Signal = structured.invoke(_build_prompt(state, lessons, similar))
         report = (
             f"SIGNAL: {signal.direction.upper()} p_true={signal.p_true:.2f} "
             f"({signal.conviction})\n{signal.rationale}"

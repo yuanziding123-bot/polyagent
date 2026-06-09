@@ -75,6 +75,14 @@ bankroll, 6% edge floor; constants mirror the polymarket reference repo). The
 `llm` is injectable: `PolyAgentsGraph(llm=...)`, and tests use a fake LLM so the
 whole pipeline runs without a key or network.
 
+**RAG over markets (Polymarket/agents-style).** The official Polymarket/agents
+framework (archived, OpenAI-based, Python 3.9) overlaps what we already have
+except its **Chroma RAG**. We adopt that natively in `rag/store.py` with
+`chromadb` (local all-MiniLM embeddings — free, no key): every collected market
+is vectorised, and the signal agent retrieves semantically *similar past
+markets* (with their resolved winner when known) as extra context. Disabled
+gracefully if `chromadb` isn't installed (`rag_enabled: False`).
+
 ```python
 from polyagents.graph.orchestrator import PolyAgentsGraph
 ta = PolyAgentsGraph()                 # needs ANTHROPIC_API_KEY for analyze()
@@ -185,6 +193,8 @@ polyagents/
     report.py              # P&L / attribution report
   storage/
     db.py                  # SQLite store: markets/candles/trades/orderbook/collections + trades cache
+  rag/
+    store.py               # ChromaDB RAG over markets (Polymarket/agents-style retrieval)
   mcp_tools.py             # load configured MCP servers (Polymarket docs) as LangGraph tools
   graph/
     state.py               # MarketState TypedDict (L1+L2 fields) + initial-state builder

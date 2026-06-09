@@ -35,6 +35,7 @@ from polyagents.feedback.memory import MemoryStore, make_trade_record
 from polyagents.feedback.reflection import reflect_on_outcome
 from polyagents.feedback.report import pnl_report
 from polyagents.feedback.settlement import resolve_winner, resolve_winning_token, settlement_pnl
+from polyagents.rag.store import ChromaRAG
 from polyagents.storage.db import DataStore
 
 from .setup import build_analysis_graph, build_data_collection_graph, build_trading_graph
@@ -76,6 +77,12 @@ class PolyAgentsGraph:
 
         # Layer 4 — persistent decision log / memory (feeds lessons back in).
         self.memory = MemoryStore(self.config["memory_path"])
+        # Polymarket/agents-style RAG: vectorise markets so the signal agent can
+        # retrieve semantically similar past markets. Disabled if chromadb absent.
+        self.rag = (
+            ChromaRAG(path=self.config.get("chroma_path"))
+            if self.config.get("rag_enabled", True) else None
+        )
 
     def _default_execution_client(self) -> ExecutionClient:
         if self.config.get("execution_mode") == "live":
@@ -108,7 +115,8 @@ class PolyAgentsGraph:
         if self._analysis_graph is None:
             self._analysis_graph = build_analysis_graph(
                 self.client, self.news_client, self.config, self._get_llm(),
-                scorer=self.scorer, forecaster=self.forecaster, memory=self.memory, store=self.store,
+                scorer=self.scorer, forecaster=self.forecaster, memory=self.memory,
+                store=self.store, rag=self.rag,
             )
         return self._analysis_graph
 
@@ -120,7 +128,8 @@ class PolyAgentsGraph:
             )
             self._trading_graph = build_trading_graph(
                 self.client, self.news_client, self.config, self._get_llm(), execute_node,
-                scorer=self.scorer, forecaster=self.forecaster, memory=self.memory, store=self.store,
+                scorer=self.scorer, forecaster=self.forecaster, memory=self.memory,
+                store=self.store, rag=self.rag,
             )
         return self._trading_graph
 
@@ -129,6 +138,8 @@ class PolyAgentsGraph:
     def _persist_market(self, market: Market) -> None:
         if self.store is not None:
             self.store.record_market(market)
+        if self.rag is not None:
+            self.rag.index_market(market)   # vectorise for similar-market retrieval
 
     def collect(self, market: Market, as_of: str | None = None) -> dict[str, Any]:
         """Layer 1 only: data collection for one market; returns final state."""
@@ -166,6 +177,8 @@ class PolyAgentsGraph:
                 continue                      # not resolved yet
             won = rec["token_id"] == win_token        # robust: compare token, not label
             winner = resolve_winner(market_raw or {}) # best-effort label for display
+            if self.rag is not None:
+                self.rag.annotate_outcome(rec["condition_id"], winner)  # close the RAG loop
             pos = self.portfolio.positions.get(rec["token_id"])
             pnl = ret = None
             if pos is not None:               # we actually hold it -> settle paper payout

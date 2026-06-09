@@ -61,6 +61,11 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "db_path": os.getenv("POLYAGENTS_DB_PATH", os.path.join(_POLYAGENTS_HOME, "cache", "polyagents.db")),
     "persist_enabled": True,          # set False to run fully in-memory (no DB)
 
+    # RAG over markets (ChromaDB) — Polymarket/agents-style retrieval. Local
+    # all-MiniLM embeddings (free, no key). False disables; needs chromadb.
+    "rag_enabled": True,
+    "chroma_path": os.getenv("POLYAGENTS_CHROMA_PATH", os.path.join(_POLYAGENTS_HOME, "cache", "chroma")),
+
     # Layer 4 — persistent decision log / memory (JSONL).
     "memory_path": os.getenv("POLYAGENTS_MEMORY_PATH", os.path.join(_POLYAGENTS_HOME, "memory", "trades.jsonl")),
 

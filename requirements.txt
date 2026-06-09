@@ -10,6 +10,8 @@ py-clob-client>=0.17.0
 # MarketLens (Merakku v3.0 Layer 1 P0) — tick-level L2 history / backtesting.
 # SDK installs free; DATA ACCESS NEEDS A PAID MARKETLENS_API_KEY.
 marketlens>=1.3.0
+# RAG over markets (Polymarket/agents-style Chroma). Local embeddings, no key.
+chromadb>=1.0.0
 
 # HTTP / data
 httpx>=0.27.0
