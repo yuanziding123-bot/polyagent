@@ -79,8 +79,10 @@ def _market_dict(m: Market) -> dict[str, Any]:
 
 def _decision_dict(d: TradeDecision) -> dict[str, Any]:
     return {
-        "action": d.action, "p_true": d.p_true, "price": d.market_price, "edge": d.edge,
-        "kelly_fraction": d.kelly_fraction, "size_usdc": d.size_usdc, "reasons": d.reasons,
+        "action": d.action, "p_calibrated": d.p_true, "raw_p_true": d.raw_p_true,
+        "price": d.market_price, "edge": d.edge, "annualized_edge": d.annualized_edge,
+        "days_to_expiry": d.days_to_expiry, "kelly_fraction": d.kelly_fraction,
+        "size_usdc": d.size_usdc, "reasons": d.reasons,
     }
 
 
@@ -155,7 +157,7 @@ def size_position(p_true: float, token_id: str) -> dict:
     price, spread_bps = _live_price_spread(token_id, m.price)
     direction = "yes" if p_true >= price else "no"
     signal = Signal(direction=direction, p_true=p_true, conviction="medium", rationale="agent estimate")
-    d = decide(signal, price, m.liquidity, spread_bps, engine().config)
+    d = decide(signal, price, m.liquidity, spread_bps, engine().config, days_to_expiry=m.days_to_expiry)
     return _decision_dict(d)
 
 
@@ -168,7 +170,9 @@ def paper_execute(token_id: str, side: str, size_usdc: float) -> dict:
     if m is None:
         return {"error": f"market {token_id} not found"}
     ref_price, _ = _live_price_spread(token_id, m.price)
-    order = Order(token_id=token_id, side=side, size_usdc=size_usdc, ref_price=ref_price, market=m.question)
+    book = eng.client.fetch_order_book(token_id)   # walk it for realistic slippage
+    order = Order(token_id=token_id, side=side, size_usdc=size_usdc, ref_price=ref_price,
+                  market=m.question, book=book)
     allowed, reason = eng.circuit_breaker.check(order, eng.portfolio)
     if not allowed:
         res = ExecutionResult("blocked", order, reason=reason)
@@ -211,6 +215,14 @@ def pnl_report() -> str:
     """Aggregate P&L / attribution over all logged trades (hit rate, realised P&L,
     avg return, decision mix)."""
     return engine().report()
+
+
+@mcp.tool()
+def evaluation_report() -> str:
+    """Forecast-quality report: does our p_true actually beat the market price as a
+    baseline? Brier / log-loss / calibration error (ECE) for the model vs the
+    market, stratified by category. If we don't beat the market, the edge is noise."""
+    return engine().evaluate()
 
 
 def main() -> None:

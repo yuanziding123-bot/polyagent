@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 Side = Literal["buy", "sell"]
 ExecStatus = Literal["filled", "blocked", "skipped", "rejected", "error"]
@@ -22,6 +22,7 @@ class Order:
     size_usdc: float          # notional to deploy (buy); ignored for a full-exit sell
     ref_price: float          # reference price: best ask (buy) / best bid (sell)
     market: str = ""          # human label for logs
+    book: Any = None          # live OrderBook (bids/asks levels) for realistic fills
 
 
 @dataclass

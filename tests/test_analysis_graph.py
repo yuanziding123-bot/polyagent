@@ -24,9 +24,11 @@ def test_full_pipeline_signal_decision_reflection(fake_client, fake_llm, sample_
     assert isinstance(final["trade_decision"], TradeDecision)
     assert isinstance(final["reflection"], Reflection)
 
-    # The decision consumed the signal's p_true (0.70) against sample price 0.45.
+    # The decision consumed the signal's p_true (0.70); raw is preserved, the
+    # sized p_true is calibrated toward the market price.
     d = final["trade_decision"]
-    assert d.p_true == 0.70
+    assert d.raw_p_true == 0.70
+    assert d.p_true != 0.70                    # shrunk toward market
     assert d.action in ("buy", "hold", "sell")
     assert final["signal_report"] and final["decision_report"] and final["reflection_report"]
 

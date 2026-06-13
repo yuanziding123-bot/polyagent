@@ -22,6 +22,21 @@ def effective_market_price(state: dict) -> tuple[float, str]:
     return float(state.get("market_price", 0.0) or 0.0), "market snapshot"
 
 
+def annualized_edge(edge: float, market_price: float, days_to_expiry: float) -> float:
+    """Annualised expected return on capital for holding to resolution.
+
+    A binary share costs ``market_price`` and the trade's expected profit is
+    ``edge`` per $1 of share, realised only at resolution. Return on capital ≈
+    ``edge / market_price`` over ``days_to_expiry`` days, annualised (simple).
+    A 6% edge resolving in 9 days is a very different trade from 9 months — this
+    is what the time-aware gate and APY reporting use.
+    """
+    if market_price <= 1e-9:
+        return 0.0
+    days = max(float(days_to_expiry), 0.5)
+    return (edge / market_price) * (365.0 / days)
+
+
 def edge_for_side(p_true: float, market_price: float) -> float:
     """Edge from buying the analysed side: estimated prob minus its price.
 

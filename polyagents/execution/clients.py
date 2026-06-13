@@ -31,31 +31,80 @@ class PaperExecutionClient:
         self.slippage_bps = slippage_bps
 
     def submit(self, order: Order, portfolio: Portfolio) -> ExecutionResult:
-        slip = self.slippage_bps / 10_000.0
+        """Fill by WALKING the live order book (realistic slippage + impact). A
+        large order eats through levels, so the average fill is worse than the
+        touch — modelling this matters: filling at mid/touch systematically
+        overstates paper P&L, which then poisons the L4 feedback loop. Falls back
+        to a fixed-slippage touch fill only when no book is attached."""
         now = datetime.now(timezone.utc)
 
         if order.side == "buy":
             if order.size_usdc <= 0:
                 return ExecutionResult("skipped", order, reason="zero size")
-            price = order.ref_price * (1 + slip)
-            if price <= 0:
-                return ExecutionResult("rejected", order, reason="non-positive fill price")
-            shares = order.size_usdc / price
-            fill = Fill(order.token_id, "buy", price, shares, order.size_usdc, now)
+            shares, notional, avg = self._buy_fill(order)
+            if shares <= 0 or avg <= 0:
+                return ExecutionResult("rejected", order, reason="no ask liquidity")
+            fill = Fill(order.token_id, "buy", avg, shares, notional, now)
             portfolio.apply_buy(fill)
+            slip = (avg / (order.ref_price or avg) - 1.0)
+            partial = "" if notional >= order.size_usdc - 0.01 else f" (partial, book thin)"
             return ExecutionResult("filled", order, fill, 0.0,
-                                   f"bought {shares:,.0f} @ {price:.3f}")
+                                   f"bought {shares:,.0f} @ avg {avg:.3f} (slip {slip:+.1%}){partial}")
 
         # sell = full exit of the held position
         if order.token_id not in portfolio.positions:
             return ExecutionResult("skipped", order, reason="no position to sell")
-        price = order.ref_price * (1 - slip)
         pos = portfolio.positions[order.token_id]
         shares = pos.shares
-        pnl = portfolio.apply_sell_close(order.token_id, price, now)
-        fill = Fill(order.token_id, "sell", price, shares, price * shares, now)
+        avg = self._sell_fill(order, shares)
+        if avg <= 0:
+            return ExecutionResult("rejected", order, reason="no bid liquidity")
+        pnl = portfolio.apply_sell_close(order.token_id, avg, now)
+        fill = Fill(order.token_id, "sell", avg, shares, avg * shares, now)
+        slip = (1.0 - avg / (order.ref_price or avg))
         return ExecutionResult("filled", order, fill, pnl,
-                               f"sold {shares:,.0f} @ {price:.3f}, P&L {pnl:+,.2f}")
+                               f"sold {shares:,.0f} @ avg {avg:.3f} (slip {slip:+.1%}), P&L {pnl:+,.2f}")
+
+    # ----- fill models -------------------------------------------------------
+
+    def _buy_fill(self, order: Order) -> tuple[float, float, float]:
+        """Return (shares, notional_spent, avg_price) for a buy of size_usdc."""
+        asks = list(getattr(order.book, "asks", None) or [])
+        if not asks:                                   # no book → fixed-slippage touch fill
+            price = order.ref_price * (1 + self.slippage_bps / 10_000.0)
+            if price <= 0:
+                return 0.0, 0.0, 0.0
+            return order.size_usdc / price, order.size_usdc, price
+        spent = shares = 0.0
+        for lvl in asks:                               # best (lowest) ask first
+            cap = lvl.price * lvl.size
+            if spent + cap >= order.size_usdc:
+                take = order.size_usdc - spent
+                shares += take / lvl.price
+                spent = order.size_usdc
+                break
+            spent += cap
+            shares += lvl.size
+        return shares, spent, (spent / shares if shares else 0.0)
+
+    def _sell_fill(self, order: Order, shares_to_sell: float) -> float:
+        """Average price selling ``shares_to_sell`` by walking the bids."""
+        bids = list(getattr(order.book, "bids", None) or [])
+        if not bids:
+            return order.ref_price * (1 - self.slippage_bps / 10_000.0)
+        proceeds = sold = 0.0
+        worst = bids[-1].price
+        for lvl in bids:                               # best (highest) bid first
+            if sold + lvl.size >= shares_to_sell:
+                proceeds += (shares_to_sell - sold) * lvl.price
+                sold = shares_to_sell
+                break
+            proceeds += lvl.size * lvl.price
+            sold += lvl.size
+            worst = lvl.price
+        if sold < shares_to_sell:                      # book too thin → remainder at worst level
+            proceeds += (shares_to_sell - sold) * worst
+        return proceeds / shares_to_sell if shares_to_sell else 0.0
 
 
 class LiveCLOBExecutionClient:

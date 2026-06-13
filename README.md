@@ -69,9 +69,14 @@ print(ta.store.counts())   # {'markets': 1, 'candles': 169, 'trades': 3418, ...}
 | **Decision** | edge vs price → fractional-Kelly size + hard risk gates (liquidity, spread, edge floor) | **deterministic** (risk embedded, auditable) | `agents/decision_agent.py`, `agents/risk.py` |
 | **Reflection** | pre-trade self-critique: risk flags, shaky assumptions, OOD | LLM (Claude), structured output | `agents/reflection_agent.py` |
 
-The decision agent is intentionally **not** an LLM — sizing and risk are math
-(`edge = p_true − price`, `f* = (q−p)/(1−p)`, quarter-Kelly capped at 5% of
-bankroll, 6% edge floor; constants mirror the polymarket reference repo). The
+The decision agent is intentionally **not** an LLM — sizing and risk are math.
+Two safeguards beyond raw edge (from review feedback): the model `p_true` is
+first **calibrated** toward the market price (a calibrated baseline; the LLM is
+noisy — `agents/calibration.py`), and entries are gated on the **time-annualised**
+return / APY, not just a flat 6% edge (a 6% edge in 9 days ≠ 9 months). Then:
+`edge = p_cal − price`, `f* = (q−p)/(1−p)`, quarter-Kelly capped at 5% of bankroll.
+Paper fills **walk the order book** for realistic slippage (filling at mid would
+overstate P&L and poison the feedback loop). The
 `llm` is injectable: `PolyAgentsGraph(llm=...)`, and tests use a fake LLM so the
 whole pipeline runs without a key or network.
 
@@ -171,8 +176,9 @@ chat (Alpha DevBox)  →  agent (Claude)  →  skills/*  +  polyagents MCP tools
 
 - **MCP server** — `polyagents/mcp_server.py` (`FastMCP`) exposes the engine as
   deterministic, JSON-returning tools: `scan_markets`, `market_snapshot`,
-  `find_similar_markets`, `size_position` (Kelly + risk gates), `paper_execute`
-  (circuit-breaker gated), `portfolio_status`, `settle_markets`, `pnl_report`.
+  `find_similar_markets`, `size_position` (calibration + Kelly + time-annualised
+  gates), `paper_execute` (walk-the-book fills, circuit-breaker gated),
+  `portfolio_status`, `settle_markets`, `pnl_report`, `evaluation_report`.
   The **host agent does the reasoning**; the tools need no internal LLM/key.
 
   ```bash
@@ -219,6 +225,10 @@ polyagents/
     settlement.py          # resolve winner (by token) + paper payout
     reflection.py          # LLM outcome reflection -> Lesson
     report.py              # P&L / attribution report
+  evaluation/              # forecast-quality / calibration (peer to L1-L4)
+    metrics.py             # Brier / log-loss / ECE + calibration curve
+    evaluate.py            # model vs MARKET baseline, stratified by category
+  agents/calibration.py    # shrink p_true toward market (Calibrator)
   storage/
     db.py                  # SQLite store: markets/candles/trades/orderbook/collections + trades cache
   rag/

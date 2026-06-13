@@ -29,6 +29,7 @@ class MarketState(MessagesState):
     market_price: Annotated[float, "Last market price for the analysed side"]
     liquidity: Annotated[float, "Market liquidity (USDC) — risk gate input"]
     volume_24h: Annotated[float, "24h volume (USDC)"]
+    days_to_expiry: Annotated[float, "Days to resolution — time-annualised edge gate"]
     as_of: Annotated[str, "ISO timestamp the collection run was anchored to"]
     market_context: Annotated[str, "Deterministic market identity block"]
 
@@ -68,6 +69,7 @@ def build_initial_state(market: Market, as_of: str) -> dict[str, Any]:
         "market_price": market.price,
         "liquidity": market.liquidity,
         "volume_24h": market.volume_24h,
+        "days_to_expiry": market.days_to_expiry,
         "as_of": as_of,
         "market_context": get_market_context(market),
         "price_report": "",

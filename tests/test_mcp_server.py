@@ -56,7 +56,10 @@ def test_size_position_buys_on_edge(fake_client, sample_market):
     _setup(fake_client, sample_market)         # mid 0.45, spread gate relaxed
     d = mcp_server.size_position(p_true=0.70, token_id=TOKEN)
     assert d["action"] == "buy"
-    assert d["edge"] == approx(0.25)           # 0.70 - 0.45
+    assert d["raw_p_true"] == 0.70
+    assert d["p_calibrated"] < 0.70            # shrunk toward market price
+    assert 0 < d["edge"] < 0.25                # calibrated edge is smaller than raw
+    assert d["annualized_edge"] > 0
     assert d["size_usdc"] > 0
 
 

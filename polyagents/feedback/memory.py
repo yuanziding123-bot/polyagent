@@ -33,9 +33,12 @@ def make_trade_record(state: dict) -> dict[str, Any]:
         "question": state.get("question", ""),
         "side": state.get("outcome", ""),
         "action": decision.action,
-        "p_true": decision.p_true,
+        "p_true": decision.p_true,                 # calibrated p used to size
+        "raw_p_true": getattr(decision, "raw_p_true", None),
         "market_price": decision.market_price,
         "edge": decision.edge,
+        "annualized_edge": getattr(decision, "annualized_edge", None),
+        "days_to_expiry": getattr(decision, "days_to_expiry", None),
         "size_usdc": decision.size_usdc,
         "exec_status": getattr(exec_result, "status", None),
         "fill_price": getattr(getattr(exec_result, "fill", None), "price", None),

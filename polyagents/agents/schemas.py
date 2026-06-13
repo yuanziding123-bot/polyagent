@@ -50,7 +50,11 @@ class Lesson(BaseModel):
 
 @dataclass
 class TradeDecision:
-    """Deterministic decision agent output (risk + Kelly sizing)."""
+    """Deterministic decision agent output (risk + Kelly sizing).
+
+    ``p_true`` is the CALIBRATED probability actually used for sizing;
+    ``raw_p_true`` is the model's pre-calibration estimate.
+    """
 
     action: Literal["buy", "sell", "hold"]
     p_true: float
@@ -59,3 +63,6 @@ class TradeDecision:
     kelly_fraction: float
     size_usdc: float
     reasons: list[str] = field(default_factory=list)
+    annualized_edge: float = 0.0
+    raw_p_true: float | None = None
+    days_to_expiry: float | None = None

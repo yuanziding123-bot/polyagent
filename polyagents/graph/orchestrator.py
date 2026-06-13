@@ -125,6 +125,7 @@ class PolyAgentsGraph:
         if self._trading_graph is None:
             execute_node = create_execution_agent(
                 self.execution_client, self.portfolio, self.circuit_breaker,
+                data_client=self.client,
             )
             self._trading_graph = build_trading_graph(
                 self.client, self.news_client, self.config, self._get_llm(), execute_node,
@@ -207,6 +208,12 @@ class PolyAgentsGraph:
     def report(self) -> str:
         """Aggregate P&L / attribution over the decision log."""
         return pnl_report(self.memory.all())
+
+    def evaluate(self) -> str:
+        """Calibration / skill report: does p_true beat the market baseline?
+        (Brier / log-loss / ECE vs the market price, stratified by category.)"""
+        from polyagents.evaluation.evaluate import evaluate as _eval, format_report
+        return format_report(_eval(self.memory.all()))
 
     def most_active_market(self) -> Market | None:
         """Discovery helper: the single most-active tradeable side right now."""

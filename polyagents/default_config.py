@@ -107,11 +107,15 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Layer 2 — decision engine (risk embedded in the decision agent).
     # Constants mirror the polymarket reference repo.
     "bankroll_usdc": 500.0,           # capital base for sizing
-    "edge_floor": 0.06,               # min |p_true - price| to act (6%)
+    "edge_floor": 0.06,               # min |edge| to act (6%) — absolute noise guard
+    "min_annualized_edge": 0.50,      # time gate: require >=50% APY (capital-lockup aware)
     "kelly_multiplier": 0.25,         # fractional (quarter) Kelly
     "max_position_fraction": 0.05,    # hard cap: 5% of bankroll per trade
     "min_liquidity_usdc": 5000.0,     # risk gate: skip thin markets
     "max_spread_bps": 300.0,          # risk gate: skip wide spreads
+    # Calibration: shrink the LLM p_true toward the market price (calibrated
+    # baseline) before sizing. 0 = trust the model; 0.3 = blend 30% market.
+    "calibration_market_weight": 0.3,
 
     # LLM for the signal + reflection agents (decision agent is deterministic).
     "anthropic_model": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),

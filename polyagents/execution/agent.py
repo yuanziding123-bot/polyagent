@@ -39,19 +39,27 @@ def create_execution_agent(
     client: ExecutionClient,
     portfolio: Portfolio,
     breaker: CircuitBreaker,
+    data_client=None,
 ) -> Node:
+    """``data_client`` (a PolymarketDataClient) is used to fetch the live order
+    book so paper fills walk it for realistic slippage."""
+
     def node(state: dict) -> dict[str, Any]:
         decision = state["trade_decision"]
         if decision.action == "hold":
             res = ExecutionResult("skipped", reason="decision was HOLD")
             return {"execution_result": res, "execution_report": _format(res, portfolio)}
 
+        book = None
+        if data_client is not None:
+            book = data_client.fetch_order_book(state["token_id"])
         order = Order(
             token_id=state["token_id"],
             side=decision.action,
             size_usdc=decision.size_usdc,
             ref_price=_ref_price(state, decision.action),
             market=state.get("question", ""),
+            book=book,
         )
         allowed, reason = breaker.check(order, portfolio)
         if not allowed:
