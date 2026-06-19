@@ -2,11 +2,14 @@
 
     python -m polyagents.web            # http://127.0.0.1:8000
 
-GET  /            → the chat UI (web/static/index.html)
-POST /api/chat    → Server-Sent Events: token / tool / tool_result / done / error
+GET  /             → the chat UI (web/static/index.html)
+GET  /api/skills   → registered skills (for the left-panel picker)
+GET  /api/portfolio→ current paper portfolio (for the right panel)
+POST /api/chat     → SSE: token / tool / tool_result / done / error
+                     body: { messages:[...], skills:["polymarket-trading", ...] }
 
-The agent (Claude + polyagents tools) is built once and reused, so the paper
-portfolio persists across messages. Needs ANTHROPIC_API_KEY.
+The engine (paper portfolio) persists across requests; the agent is rebuilt per
+request from the selected skills. Needs ANTHROPIC_API_KEY.
 """
 from __future__ import annotations
 
@@ -15,24 +18,17 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .agent import build_agent
+from polyagents import mcp_server
+
+from .agent import build_agent, list_skills
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="polyagents chat")
 app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
-
-_AGENT = None
-
-
-def _agent():
-    global _AGENT
-    if _AGENT is None:
-        _AGENT = build_agent()
-    return _AGENT
 
 
 @app.get("/")
@@ -40,42 +36,49 @@ async def index() -> FileResponse:
     return FileResponse(str(_STATIC / "index.html"))
 
 
+@app.get("/api/skills")
+async def skills() -> JSONResponse:
+    return JSONResponse([{"id": s["id"], "name": s["name"], "description": s["description"]}
+                         for s in list_skills()])
+
+
+@app.get("/api/portfolio")
+async def portfolio() -> JSONResponse:
+    try:
+        return JSONResponse(mcp_server.portfolio_status())
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)})
+
+
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _text_of(content: Any) -> str:
-    """Anthropic chunk content can be a string or a list of content blocks."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        out = []
-        for blk in content:
-            if isinstance(blk, dict) and blk.get("type") == "text":
-                out.append(blk.get("text", ""))
-            elif isinstance(blk, str):
-                out.append(blk)
-        return "".join(out)
+        return "".join(
+            blk.get("text", "") if isinstance(blk, dict) and blk.get("type") == "text"
+            else (blk if isinstance(blk, str) else "")
+            for blk in content
+        )
     return ""
 
 
 def _to_lc_messages(history: list[dict]) -> list[tuple[str, str]]:
-    msgs: list[tuple[str, str]] = []
-    for m in history:
-        role = "assistant" if m.get("role") == "assistant" else "user"
-        msgs.append((role, str(m.get("content", ""))))
-    return msgs
+    return [("assistant" if m.get("role") == "assistant" else "user", str(m.get("content", "")))
+            for m in history]
 
 
-async def _stream(history: list[dict]) -> AsyncIterator[str]:
+async def _stream(history: list[dict], skills: list[str]) -> AsyncIterator[str]:
     try:
-        agent = _agent()
+        agent = build_agent(skills or None)
     except Exception as exc:
         yield _sse({"type": "error", "message": f"agent init failed: {exc}"})
         return
-    messages = _to_lc_messages(history)
     try:
-        async for ev in agent.astream_events({"messages": messages}, version="v2"):
+        async for ev in agent.astream_events({"messages": _to_lc_messages(history)}, version="v2"):
             kind = ev.get("event")
             if kind == "on_chat_model_stream":
                 text = _text_of(ev["data"]["chunk"].content)
@@ -94,4 +97,5 @@ async def _stream(history: list[dict]) -> AsyncIterator[str]:
 async def chat(request: Request) -> StreamingResponse:
     body = await request.json()
     history = body.get("messages", [])
-    return StreamingResponse(_stream(history), media_type="text/event-stream")
+    skills = body.get("skills", [])
+    return StreamingResponse(_stream(history, skills), media_type="text/event-stream")

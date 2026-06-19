@@ -6,91 +6,190 @@
 <title>polyagents · chat</title>
 <style>
   :root{
-    --bg:#0b0e14; --panel:#11151f; --panel2:#161b27; --line:#222a3a;
-    --text:#e6e9ef; --muted:#8b94a7; --accent:#5b8cff; --accent2:#7c5cff;
-    --user:#1c2333; --tool:#13241c; --toolline:#1f6f4a;
+    --bg:#070a10; --panel:#0d111a; --panel2:#121826; --line:#1d2535;
+    --text:#e6e9ef; --muted:#8b94a7; --accent:#34d39a; --accent2:#5b8cff;
+    --tool:#0f1f18; --toolline:#1f6f4a; --tooltext:#9fe0bf; --user:#16203a;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#141a28 0%,var(--bg) 60%);
-       color:var(--text);font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
-  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
-  .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
-  header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.2px}
-  header .sub{color:var(--muted);font-size:12px}
-  header .spacer{flex:1}
-  header .paper{font-size:11px;color:#9fe0bf;border:1px solid var(--toolline);background:var(--tool);
-       padding:3px 9px;border-radius:999px}
-  #log{flex:1;overflow-y:auto;padding:24px 0}
-  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
-  .msg{display:flex;gap:12px;margin:18px auto}
-  .avatar{width:28px;height:28px;border-radius:8px;flex:0 0 28px;font-size:13px;display:flex;align-items:center;justify-content:center}
-  .me .avatar{background:var(--user);color:var(--accent)}
-  .ai .avatar{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-  .bubble{padding:2px 0;white-space:pre-wrap;word-wrap:break-word;flex:1}
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--text);
+       font:14px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       display:flex;flex-direction:column;overflow:hidden}
+  /* top nav */
+  .topnav{height:52px;flex:0 0 52px;display:flex;align-items:center;gap:18px;
+       padding:0 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700}
+  .logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .tabs{display:flex;gap:4px}
+  .tab{padding:6px 13px;border-radius:8px;color:var(--muted);cursor:pointer;font-weight:500}
+  .tab.active{color:var(--text);background:var(--panel2)}
+  .tab.soon{opacity:.5;cursor:not-allowed}
+  .topnav .spacer{flex:1}
+  .badge{font-size:11px;color:var(--tooltext);border:1px solid var(--toolline);
+       background:var(--tool);padding:4px 10px;border-radius:999px}
+  /* body grid */
+  .app{flex:1;display:grid;grid-template-columns:248px 1fr 300px;min-height:0}
+  aside{border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px}
+  aside.right{border-right:0;border-left:1px solid var(--line)}
+  .newchat{width:100%;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+       border-radius:10px;padding:9px;cursor:pointer;font-weight:600}
+  .newchat:hover{border-color:var(--accent)}
+  .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin:18px 4px 8px}
+  .skill{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 10px;margin-bottom:8px;cursor:pointer}
+  .skill:hover{border-color:#2c3850}
+  .skill.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(52,211,154,.25)}
+  .skill .row{display:flex;align-items:center;gap:8px}
+  .skill .dot{width:14px;height:14px;border-radius:4px;border:1px solid var(--line);flex:0 0 14px}
+  .skill.on .dot{background:var(--accent);border-color:var(--accent)}
+  .skill .nm{font-weight:600}
+  .skill .ds{color:var(--muted);font-size:12px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hist{color:var(--muted);font-size:13px;padding:8px 4px}
+  /* center chat */
+  .center{display:flex;flex-direction:column;min-height:0;background:radial-gradient(900px 500px at 50% -15%,#0c121d,var(--bg) 60%)}
+  #log{flex:1;overflow-y:auto;padding:22px 0}
+  .wrap{max-width:740px;margin:0 auto;padding:0 22px}
+  .msg{display:flex;gap:12px;margin:16px auto}
+  .avatar{width:26px;height:26px;border-radius:7px;flex:0 0 26px;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .me .avatar{background:var(--user);color:var(--accent2)}
+  .ai .avatar{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04130d;font-weight:700}
+  .bubble{padding:1px 0;white-space:pre-wrap;word-wrap:break-word;flex:1}
   .me .bubble{color:#cdd5e6}
-  .tool{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fe0bf;
-        background:var(--tool);border:1px solid var(--toolline);border-radius:8px;padding:6px 10px;margin:6px 0;display:inline-block}
+  .tool{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tooltext);
+        background:var(--tool);border:1px solid var(--toolline);border-radius:8px;padding:5px 9px;margin:6px 0;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .tool .args{color:#6fb89a}
-  .empty{color:var(--muted);text-align:center;margin-top:12vh}
+  .empty{color:var(--muted);text-align:center;margin-top:11vh}
   .empty h2{color:var(--text);font-weight:600;margin:0 0 6px}
   .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
-  .chip{border:1px solid var(--line);background:var(--panel2);color:var(--muted);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  .chip{border:1px solid var(--line);background:var(--panel2);color:var(--muted);padding:8px 12px;border-radius:10px;cursor:pointer}
   .chip:hover{color:var(--text);border-color:var(--accent)}
-  footer{border-top:1px solid var(--line);padding:14px 0 18px;background:var(--bg)}
-  .composer{max-width:760px;margin:0 auto;padding:0 20px;display:flex;gap:10px;align-items:flex-end}
-  textarea{flex:1;resize:none;background:var(--panel2);color:var(--text);border:1px solid var(--line);
-       border-radius:12px;padding:12px 14px;font:15px inherit;max-height:160px;outline:none}
-  textarea:focus{border-color:var(--accent)}
-  button.send{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0;border-radius:12px;
-       padding:0 18px;height:46px;font-weight:600;cursor:pointer}
-  button.send:disabled{opacity:.5;cursor:default}
-  .hint{max-width:760px;margin:8px auto 0;padding:0 20px;color:var(--muted);font-size:11px;text-align:center}
-  .cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(2) infinite}
+  .cursor{display:inline-block;width:7px;height:14px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(2) infinite}
   @keyframes blink{50%{opacity:0}}
+  .composer{border-top:1px solid var(--line);padding:13px 0 16px;background:var(--bg)}
+  .crow{max-width:740px;margin:0 auto;padding:0 22px;display:flex;gap:10px;align-items:flex-end}
+  textarea{flex:1;resize:none;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+       border-radius:12px;padding:11px 13px;font:14px inherit;max-height:150px;outline:none}
+  textarea:focus{border-color:var(--accent)}
+  .send{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04130d;border:0;border-radius:12px;
+       padding:0 18px;height:44px;font-weight:700;cursor:pointer}
+  .send:disabled{opacity:.5;cursor:default}
+  /* right portfolio */
+  .total{font-size:12px;color:var(--muted)}
+  .total b{display:block;font-size:26px;color:var(--text);font-weight:700;margin-top:2px}
+  .stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .stat .v{font-weight:600}
+  .pos{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:9px 10px;margin-top:8px;font-size:12px}
+  .pos .q{color:var(--text);margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pos .m{color:var(--muted);font:11px ui-monospace,monospace}
+  .green{color:var(--accent)} .red{color:#ff6b7a}
+  .refresh{float:right;color:var(--muted);cursor:pointer;font-size:12px}
+  .refresh:hover{color:var(--text)}
 </style>
 </head>
 <body>
-  <header>
-    <div class="logo"></div>
-    <div>
-      <h1>polyagents</h1>
-      <div class="sub">Polymarket trading agent · track the money</div>
+  <div class="topnav">
+    <div class="brand"><div class="logo"></div> polyagents</div>
+    <div class="tabs">
+      <div class="tab active">Chat</div>
+      <div class="tab soon" title="coming soon">Market</div>
+      <div class="tab soon" title="coming soon">Events</div>
     </div>
     <div class="spacer"></div>
-    <div class="paper">● paper mode</div>
-  </header>
+    <div class="badge">● paper mode</div>
+  </div>
 
-  <div id="log"><div class="wrap">
-    <div class="empty" id="empty">
-      <h2>What should we trade today?</h2>
-      <div>Ask me to scan markets, analyse one, size a bet, or review the book.</div>
-      <div class="chips">
-        <div class="chip" onclick="quick(this)">Scan the most active markets</div>
-        <div class="chip" onclick="quick(this)">Analyse a liquid market and estimate a fair probability</div>
-        <div class="chip" onclick="quick(this)">Show my paper portfolio</div>
-        <div class="chip" onclick="quick(this)">How well-calibrated are my predictions?</div>
+  <div class="app">
+    <!-- LEFT: new chat + skills + history -->
+    <aside class="left">
+      <button class="newchat" onclick="newChat()">＋ New chat</button>
+      <div class="label">Skills</div>
+      <div id="skills"></div>
+      <div class="label">Chat history</div>
+      <div class="hist" id="hist">This conversation</div>
+    </aside>
+
+    <!-- CENTER: chat -->
+    <div class="center">
+      <div id="log"><div class="wrap">
+        <div class="empty" id="empty">
+          <h2>What should we trade today?</h2>
+          <div>Pick skills on the left, then ask me to scan, analyse, size, or review.</div>
+          <div class="chips">
+            <div class="chip" onclick="quick(this)">Scan the most active markets</div>
+            <div class="chip" onclick="quick(this)">Analyse a liquid market and estimate a fair probability</div>
+            <div class="chip" onclick="quick(this)">Show my paper portfolio</div>
+            <div class="chip" onclick="quick(this)">How well-calibrated are my predictions?</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="composer"><div class="crow">
+        <textarea id="input" rows="1" placeholder="Message the trading agent…"></textarea>
+        <button class="send" id="send">Send</button>
+      </div></div>
+    </div>
+
+    <!-- RIGHT: portfolio -->
+    <aside class="right">
+      <div class="total">Paper equity <span class="refresh" onclick="loadPortfolio()">⟳ refresh</span><b id="equity">$—</b></div>
+      <div style="margin-top:14px">
+        <div class="stat"><span>Cash</span><span class="v" id="cash">$—</span></div>
+        <div class="stat"><span>Exposure</span><span class="v" id="exposure">$—</span></div>
+        <div class="stat"><span>Realised P&L</span><span class="v" id="pnl">$—</span></div>
       </div>
-    </div>
-  </div></div>
-
-  <footer>
-    <div class="composer">
-      <textarea id="input" rows="1" placeholder="Message the trading agent…"></textarea>
-      <button class="send" id="send">Send</button>
-    </div>
-    <div class="hint">Paper trading only · the agent reasons with Claude and calls deterministic polyagents tools</div>
-  </footer>
+      <div class="label">Open positions</div>
+      <div id="positions"><div class="hist">No open positions</div></div>
+    </aside>
+  </div>
 
 <script>
 const log = document.getElementById('log').querySelector('.wrap');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
-const history = [];
+let history = [];
 let busy = false;
+let selected = new Set();
 
+// ---- skills ----
+async function loadSkills(){
+  const el = document.getElementById('skills');
+  try{
+    const skills = await (await fetch('/api/skills')).json();
+    el.innerHTML = '';
+    skills.forEach((s,i) => {
+      if(i===0) selected.add(s.id);            // default: first skill on
+      const d = document.createElement('div');
+      d.className = 'skill' + (selected.has(s.id)?' on':'');
+      d.innerHTML = `<div class="row"><div class="dot"></div><div class="nm">${esc(s.name)}</div></div><div class="ds">${esc(s.description||'')}</div>`;
+      d.onclick = () => { if(selected.has(s.id)) selected.delete(s.id); else selected.add(s.id);
+                          d.classList.toggle('on'); };
+      el.appendChild(d);
+    });
+  }catch(e){ el.innerHTML = '<div class="hist">skills unavailable</div>'; }
+}
+
+// ---- portfolio ----
+async function loadPortfolio(){
+  try{
+    const p = await (await fetch('/api/portfolio')).json();
+    if(p.error){ return; }
+    const eq = (p.cash||0) + (p.exposure||0);
+    document.getElementById('equity').textContent = '$'+fmt(eq);
+    document.getElementById('cash').textContent = '$'+fmt(p.cash);
+    document.getElementById('exposure').textContent = '$'+fmt(p.exposure);
+    const pnlEl = document.getElementById('pnl');
+    pnlEl.textContent = (p.realized_pnl>=0?'+$':'-$')+fmt(Math.abs(p.realized_pnl||0));
+    pnlEl.className = 'v ' + ((p.realized_pnl||0)>=0?'green':'red');
+    const pos = document.getElementById('positions');
+    if(!p.open_positions || !p.open_positions.length){ pos.innerHTML='<div class="hist">No open positions</div>'; }
+    else{ pos.innerHTML = p.open_positions.map(x =>
+        `<div class="pos"><div class="q">${esc(x.market||x.token_id)}</div><div class="m">${fmt(x.shares)} sh @ ${x.avg_price}</div></div>`).join(''); }
+  }catch(e){}
+}
+function fmt(n){ return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2}); }
+function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// ---- chat ----
 function quick(el){ input.value = el.textContent; send(); }
-input.addEventListener('input', () => { input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,160)+'px'; });
+function newChat(){ history=[]; log.innerHTML=''; const e=document.createElement('div'); }
+input.addEventListener('input', () => { input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,150)+'px'; });
 input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
 sendBtn.onclick = send;
 
@@ -100,49 +199,49 @@ function addMsg(role, text){
   const av = document.createElement('div'); av.className='avatar'; av.textContent = role==='user'?'you':'◆';
   const b = document.createElement('div'); b.className='bubble'; b.textContent = text||'';
   m.appendChild(av); m.appendChild(b); log.appendChild(m);
-  log.parentElement.scrollTop = log.parentElement.scrollHeight;
-  return b;
+  scroll(); return b;
 }
 function addTool(name, args){
   const t = document.createElement('div'); t.className='tool';
-  let a = ''; try{ a = args ? JSON.stringify(args) : ''; }catch(e){}
-  t.innerHTML = '⚙ '+name+' <span class="args">'+(a?escapeHtml(a):'')+'</span>';
-  log.appendChild(t); log.parentElement.scrollTop = log.parentElement.scrollHeight;
+  let a=''; try{ a=args?JSON.stringify(args):''; }catch(e){}
+  t.innerHTML = '⚙ '+esc(name)+' <span class="args">'+(a?esc(a.slice(0,120)):'')+'</span>';
+  log.appendChild(t); scroll();
 }
-function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function scroll(){ const c=document.getElementById('log'); c.scrollTop=c.scrollHeight; }
 
 async function send(){
   const text = input.value.trim();
   if(!text || busy) return;
-  busy = true; sendBtn.disabled = true;
+  busy=true; sendBtn.disabled=true;
   addMsg('user', text); history.push({role:'user', content:text});
   input.value=''; input.style.height='auto';
-
-  const bubble = addMsg('assistant',''); const cursor=document.createElement('span'); cursor.className='cursor'; bubble.appendChild(cursor);
+  const bubble = addMsg('assistant',''); const cur=document.createElement('span'); cur.className='cursor'; bubble.appendChild(cur);
   let acc='';
   try{
-    const res = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
-    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf='';
+    const res = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({messages:history, skills:[...selected]})});
+    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
-      const {value,done} = await reader.read(); if(done) break;
-      buf += dec.decode(value,{stream:true});
-      let idx;
-      while((idx = buf.indexOf('\n\n')) >= 0){
-        const line = buf.slice(0,idx).trim(); buf = buf.slice(idx+2);
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true}); let idx;
+      while((idx=buf.indexOf('\n\n'))>=0){
+        const line=buf.slice(0,idx).trim(); buf=buf.slice(idx+2);
         if(!line.startsWith('data:')) continue;
-        const ev = JSON.parse(line.slice(5).trim());
-        if(ev.type==='token'){ acc+=ev.text; bubble.textContent=acc; bubble.appendChild(cursor); }
-        else if(ev.type==='tool'){ if(cursor.parentNode)cursor.remove(); addTool(ev.name, ev.args); }
-        else if(ev.type==='error'){ acc+= (acc?'\n\n':'')+'⚠ '+ev.message; bubble.textContent=acc; }
-        else if(ev.type==='done'){ /* finished */ }
-        log.parentElement.scrollTop = log.parentElement.scrollHeight;
+        const ev=JSON.parse(line.slice(5).trim());
+        if(ev.type==='token'){ acc+=ev.text; bubble.textContent=acc; bubble.appendChild(cur); }
+        else if(ev.type==='tool'){ if(cur.parentNode)cur.remove(); addTool(ev.name,ev.args); }
+        else if(ev.type==='error'){ acc+=(acc?'\n\n':'')+'⚠ '+ev.message; bubble.textContent=acc; }
+        scroll();
       }
     }
-  }catch(e){ bubble.textContent = (acc||'') + '\n\n⚠ '+e; }
-  if(cursor.parentNode) cursor.remove();
+  }catch(e){ bubble.textContent=(acc||'')+'\n\n⚠ '+e; }
+  if(cur.parentNode) cur.remove();
   history.push({role:'assistant', content:acc});
   busy=false; sendBtn.disabled=false; input.focus();
+  loadPortfolio();                              // refresh after each turn
 }
+
+loadSkills(); loadPortfolio();
 </script>
 </body>
 </html>
