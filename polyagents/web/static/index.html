@@ -43,6 +43,15 @@
   .skill .nm{font-weight:600}
   .skill .ds{color:var(--muted);font-size:12px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .hist{color:var(--muted);font-size:13px;padding:8px 4px}
+  .mcpitem{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:8px 10px;margin-bottom:7px;cursor:pointer}
+  .mcpitem:hover{border-color:#2c3850}
+  .mcpitem .row{display:flex;align-items:center;gap:7px}
+  .mcpitem .nm{font-weight:600;font-size:13px}
+  .mcpitem .ct{color:var(--muted);font-size:11px;margin-left:auto;white-space:nowrap}
+  .mcpitem .bd{font-size:9px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .mcpitem .bd.on{color:var(--accent);border-color:var(--toolline);background:var(--tool)}
+  .mcptools{color:var(--muted);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:6px;display:none;word-break:break-word}
+  .mcpitem.open .mcptools{display:block}
   /* center chat */
   .center{display:flex;flex-direction:column;min-height:0;background:radial-gradient(900px 500px at 50% -15%,#0c121d,var(--bg) 60%)}
   #log{flex:1;overflow-y:auto;padding:22px 0}
@@ -126,6 +135,8 @@
       <button class="newchat" onclick="newChat()">＋ New chat</button>
       <div class="label">Skills</div>
       <div id="skills"></div>
+      <div class="label">MCP servers</div>
+      <div id="mcp"></div>
       <div class="label">Chat history</div>
       <div class="hist" id="hist">This conversation</div>
     </aside>
@@ -364,7 +375,24 @@ function analyseMarket(i){
 function cents(p){ return p==null ? '—' : (p*100).toFixed(1)+'¢'; }
 function short(n){ n=Number(n||0); return n>=1e6 ? (n/1e6).toFixed(1)+'M' : (n>=1e3 ? (n/1e3).toFixed(0)+'K' : n.toFixed(0)); }
 
-loadSkills(); loadPortfolio();
+// ---- mcp servers ----
+async function loadMcp(){
+  const el = document.getElementById('mcp');
+  try{
+    const servers = await (await fetch('/api/mcp')).json();
+    el.innerHTML = servers.map(s => `
+      <div class="mcpitem" onclick="this.classList.toggle('open')">
+        <div class="row">
+          <span class="nm">${esc(s.name)}</span>
+          <span class="bd ${s.in_chat?'on':''}">${s.in_chat?'in chat':esc(s.transport)}</span>
+          <span class="ct">${s.tools.length} tools</span>
+        </div>
+        <div class="mcptools">${s.tools.map(esc).join(' · ')}</div>
+      </div>`).join('');
+  }catch(e){ el.innerHTML = '<div class="hist">MCP list unavailable</div>'; }
+}
+
+loadSkills(); loadMcp(); loadPortfolio();
 </script>
 </body>
 </html>

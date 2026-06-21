@@ -45,6 +45,38 @@ def build_tools() -> list:
 
 # ----- skills registry -------------------------------------------------------
 
+def list_mcp_servers() -> list[dict]:
+    """Registered MCP servers + their tools, for the web UI's MCP panel.
+
+    ``in_chat`` marks the servers whose tools the web chat agent actually binds
+    (the rest are registered in .mcp.json for an external host)."""
+    from polyagents import mcp_server
+    from polyagents.mcp_servers import compliance, crypto, polydata, qlib_backtest
+
+    local = [
+        ("polyagents", "core trading engine — scan / size / paper-trade / settle / evaluate", mcp_server.mcp, "in-process"),
+        ("crypto", "cross-market crypto prices (Coinbase, no key)", crypto.mcp, "stdio"),
+        ("polydata", "Polymarket events / price history / recent trades", polydata.mcp, "stdio"),
+        ("compliance", "trade-math verification + audit log + risk limits", compliance.mcp, "stdio"),
+        ("qlib-backtest", "factor → model → backtest over the SQLite history (qlib venv)", qlib_backtest.mcp, "qlib-venv"),
+    ]
+    bound = {"polyagents", "crypto"}                    # what the chat agent binds
+    out: list[dict] = []
+    for sid, desc, m, transport in local:
+        try:
+            tools = [t.name for t in m._tool_manager.list_tools()]
+        except Exception:
+            tools = []
+        out.append({"id": sid, "name": m.name, "description": desc,
+                    "transport": transport, "tools": tools, "in_chat": sid in bound})
+    out.append({"id": "polymarket-docs", "name": "polymarket-docs",
+                "description": "official Polymarket documentation search (remote)",
+                "transport": "http", "tools": ["search_polymarket_documentation",
+                                               "query_docs_filesystem_polymarket_documentation"],
+                "in_chat": False})
+    return out
+
+
 def _parse_skill(text: str) -> tuple[str, str, str]:
     """Return (name, description, body) from a SKILL.md (--- frontmatter ---)."""
     name = desc = ""

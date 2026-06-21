@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from polyagents import mcp_server
 from polyagents.default_config import DEFAULT_CONFIG
 
-from .agent import build_agent, list_skills
+from .agent import build_agent, list_mcp_servers, list_skills
 
 _REPO = str(Path(__file__).resolve().parents[2])
 
@@ -46,6 +46,11 @@ async def index() -> FileResponse:
 async def skills() -> JSONResponse:
     return JSONResponse([{"id": s["id"], "name": s["name"], "description": s["description"]}
                          for s in list_skills()])
+
+
+@app.get("/api/mcp")
+async def mcp_servers() -> JSONResponse:
+    return JSONResponse(list_mcp_servers())
 
 
 @app.get("/api/portfolio")

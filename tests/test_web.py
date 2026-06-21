@@ -36,9 +36,21 @@ def test_compose_prompt_selects_skills():
     assert _compose_prompt(["nope"]).strip()
 
 
+def test_mcp_registry_lists_servers_with_tools():
+    from polyagents.web.agent import list_mcp_servers
+
+    servers = list_mcp_servers()
+    ids = {s["id"] for s in servers}
+    assert {"polyagents", "crypto", "polydata", "compliance",
+            "qlib-backtest", "polymarket-docs"} <= ids
+    crypto = next(s for s in servers if s["id"] == "crypto")
+    assert "crypto_price" in crypto["tools"] and crypto["in_chat"] is True
+
+
 def test_server_app_has_routes():
     from polyagents.web.server import app
 
     paths = {r.path for r in app.routes}
-    for p in ("/", "/api/chat", "/api/skills", "/api/portfolio", "/api/markets", "/api/backtest"):
+    for p in ("/", "/api/chat", "/api/skills", "/api/mcp", "/api/portfolio",
+              "/api/markets", "/api/backtest"):
         assert p in paths
