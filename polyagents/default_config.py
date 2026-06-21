@@ -66,6 +66,9 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "rag_enabled": True,
     "chroma_path": os.getenv("POLYAGENTS_CHROMA_PATH", os.path.join(_POLYAGENTS_HOME, "cache", "chroma")),
 
+    # qlib lives in its own venv; the web /api/backtest shells out to it.
+    "qlib_python": os.getenv("POLYAGENTS_QLIB_PYTHON", r"C:\qlib\.venv\Scripts\python.exe"),
+
     # Layer 4 — persistent decision log / memory (JSONL).
     "memory_path": os.getenv("POLYAGENTS_MEMORY_PATH", os.path.join(_POLYAGENTS_HOME, "memory", "trades.jsonl")),
 

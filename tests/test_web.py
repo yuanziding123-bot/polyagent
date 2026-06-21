@@ -39,5 +39,5 @@ def test_server_app_has_routes():
     from polyagents.web.server import app
 
     paths = {r.path for r in app.routes}
-    for p in ("/", "/api/chat", "/api/skills", "/api/portfolio", "/api/markets"):
+    for p in ("/", "/api/chat", "/api/skills", "/api/portfolio", "/api/markets", "/api/backtest"):
         assert p in paths

@@ -14,6 +14,9 @@ request from the selected skills. Needs ANTHROPIC_API_KEY.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -22,8 +25,11 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from polyagents import mcp_server
+from polyagents.default_config import DEFAULT_CONFIG
 
 from .agent import build_agent, list_skills
+
+_REPO = str(Path(__file__).resolve().parents[2])
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
@@ -73,6 +79,32 @@ async def markets(limit: int = 40, min_volume: float = 20000.0) -> JSONResponse:
                 if r["volume_24h"] >= min_volume and (r["yes_price"] or 0) > 0.005]
         rows.sort(key=lambda r: r["volume_24h"], reverse=True)
         return JSONResponse(rows[:limit])
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)})
+
+
+@app.get("/api/backtest")
+async def backtest(forward_bars: int = 5) -> JSONResponse:
+    """Run the qlib backtest in the qlib venv (cross-venv) and return metrics +
+    an equity curve for the Backtest tab. Factor→model→backtest over the SQLite
+    candle history, leakage-safe time split."""
+    py = DEFAULT_CONFIG.get("qlib_python") or sys.executable
+    snippet = (
+        "import json;from polyagents.mcp_servers.qlib_backtest import run_backtest,data_summary;"
+        f"print('@@'+json.dumps({{'summary':data_summary(),'backtest':run_backtest(forward_bars={int(forward_bars)})}}))"
+    )
+    try:
+        env = {**os.environ, "PYTHONPATH": _REPO, "PYTHONUTF8": "1"}
+        p = subprocess.run([py, "-c", snippet], capture_output=True, text=True,
+                           env=env, cwd=_REPO, timeout=180)
+        if p.returncode != 0:
+            return JSONResponse({"error": (p.stderr or "backtest failed")[-500:]})
+        line = next((l for l in p.stdout.splitlines() if l.startswith("@@")), None)
+        if not line:
+            return JSONResponse({"error": (p.stdout or p.stderr or "no output")[-500:]})
+        return JSONResponse(json.loads(line[2:]))
+    except FileNotFoundError:
+        return JSONResponse({"error": f"qlib python not found: {py}"})
     except Exception as exc:
         return JSONResponse({"error": str(exc)})
 

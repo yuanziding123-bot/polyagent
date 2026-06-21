@@ -120,12 +120,20 @@ def run_backtest(forward_bars: int = 5, train_frac: float = 0.7) -> dict:
     rets = pos * fwd
     traded = rets[pos != 0]
     sharpe = float(traded.mean() / traded.std() * np.sqrt(252)) if traded.size > 1 and traded.std() else 0.0
+    # equity curve over executed trades (for plotting), downsampled to ~80 points
+    eq = np.cumprod(1.0 + traded) if traded.size else np.array([1.0])
+    step = max(1, len(eq) // 80)
+    curve = [round(float(x), 4) for x in eq[::step]]
+    if curve and curve[-1] != round(float(eq[-1]), 4):
+        curve.append(round(float(eq[-1]), 4))
     return {
         "engine": engine, "forward_bars": forward_bars,
         "train_samples": int(cut), "test_samples": int(len(yte)),
         "accuracy": round(acc, 4), "information_coefficient": round(ic, 4),
         "n_trades": int(traded.size), "avg_trade_return": round(float(traded.mean()) if traded.size else 0.0, 5),
+        "total_return": round(float(eq[-1] - 1.0), 4) if traded.size else 0.0,
         "sharpe_annualized": round(sharpe, 3),
+        "equity_curve": curve,
         "verdict": "edge" if ic > 0.03 and acc > 0.52 else "no clear edge (likely noise)",
     }
 

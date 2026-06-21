@@ -95,6 +95,17 @@
   .mkt .q{max-width:360px;color:var(--text)}
   .mkt .px{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}
   .mkt .yes{color:var(--accent)} .mkt .no{color:#ff9aa6}
+  /* backtest view */
+  #backtestView{display:none;flex:1;overflow-y:auto;padding:16px 18px}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .card{flex:1;min-width:120px;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:11px 13px}
+  .card .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .card .v{font-size:20px;font-weight:700;margin-top:4px}
+  .verdict{padding:9px 12px;border-radius:9px;font-weight:600;margin-bottom:12px;display:inline-block}
+  .verdict.edge{background:var(--tool);border:1px solid var(--toolline);color:var(--accent)}
+  .verdict.noise{background:#221317;border:1px solid #5a2530;color:#ff9aa6}
+  .chartbox{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:12px}
+  .chartbox .t{color:var(--muted);font-size:12px;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -103,7 +114,7 @@
     <div class="tabs">
       <div class="tab active" id="tab-chat" onclick="showTab('chat')">Chat</div>
       <div class="tab" id="tab-market" onclick="showTab('market')">Market</div>
-      <div class="tab soon" title="coming soon">Events</div>
+      <div class="tab" id="tab-backtest" onclick="showTab('backtest')">Backtest</div>
     </div>
     <div class="spacer"></div>
     <div class="badge">● paper mode</div>
@@ -147,6 +158,12 @@
           <thead><tr><th>Question</th><th>YES</th><th>NO</th><th>24h Vol</th><th>Liquidity</th><th>Spread</th><th>Expiry</th></tr></thead>
           <tbody id="mktbody"><tr><td colspan="7" class="hist">Loading…</td></tr></tbody>
         </table>
+      </div>
+
+      <div id="backtestView">
+        <div class="mkthead">qlib backtest · factor → model → backtest over the SQLite history (leakage-safe time split)
+          <span class="refresh" onclick="loadBacktest()">▶ run backtest</span></div>
+        <div id="btbody"><div class="hist">Click “run backtest”. Needs candle history in the DB and the qlib venv.</div></div>
       </div>
     </div>
 
@@ -269,13 +286,54 @@ async function send(){
 let marketRows = [];
 let marketTimer = null;
 function showTab(t){
-  const chat = (t === 'chat');
-  document.getElementById('chatView').style.display = chat ? 'flex' : 'none';
-  document.getElementById('marketView').style.display = chat ? 'none' : 'block';
-  document.getElementById('tab-chat').classList.toggle('active', chat);
-  document.getElementById('tab-market').classList.toggle('active', !chat);
-  if(!chat){ loadMarkets(); marketTimer = setInterval(loadMarkets, 20000); }
-  else if(marketTimer){ clearInterval(marketTimer); marketTimer = null; }
+  document.getElementById('chatView').style.display = t==='chat' ? 'flex' : 'none';
+  document.getElementById('marketView').style.display = t==='market' ? 'block' : 'none';
+  document.getElementById('backtestView').style.display = t==='backtest' ? 'block' : 'none';
+  document.getElementById('tab-chat').classList.toggle('active', t==='chat');
+  document.getElementById('tab-market').classList.toggle('active', t==='market');
+  document.getElementById('tab-backtest').classList.toggle('active', t==='backtest');
+  if(marketTimer){ clearInterval(marketTimer); marketTimer=null; }
+  if(t==='market'){ loadMarkets(); marketTimer = setInterval(loadMarkets, 20000); }
+}
+async function loadBacktest(){
+  const el = document.getElementById('btbody');
+  el.innerHTML = '<div class="hist">Running backtest in the qlib venv… (a few seconds)</div>';
+  try{
+    const r = await (await fetch('/api/backtest?forward_bars=5')).json();
+    if(r.error){ el.innerHTML = '<div class="hist">⚠ '+esc(r.error)+'</div>'; return; }
+    const b = r.backtest || {}, s = r.summary || {};
+    if(b.error){ el.innerHTML = '<div class="hist">⚠ '+esc(b.error)+' · DB: '+(s.candles||0)+' candles, '+(s.tokens||0)+' tokens</div>'; return; }
+    const edge = (b.verdict||'').startsWith('edge');
+    const cards = [
+      ['Accuracy', (b.accuracy*100).toFixed(1)+'%'],
+      ['IC', (b.information_coefficient).toFixed(3)],
+      ['Sharpe (ann.)', (b.sharpe_annualized).toFixed(2)],
+      ['Total return', (b.total_return*100).toFixed(1)+'%'],
+      ['Trades', b.n_trades],
+    ].map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div></div>`).join('');
+    el.innerHTML =
+      `<div class="verdict ${edge?'edge':'noise'}">${edge?'✅ ':'❌ '}${esc(b.verdict)}</div>`+
+      `<div class="cards">${cards}</div>`+
+      `<div class="chartbox"><div class="t">Equity curve — strategy on held-out test set (${b.engine}, ${b.test_samples} samples)</div>${sparkline(b.equity_curve||[])}</div>`+
+      `<div class="hist" style="margin-top:10px">DB: ${s.candles} candles across ${s.tokens} tokens · forward ${b.forward_bars} bars · time-split train/test (no leakage)</div>`;
+  }catch(e){ el.innerHTML = '<div class="hist">⚠ '+e+'</div>'; }
+}
+function sparkline(vals){
+  if(!vals || vals.length<2) return '<div class="hist">no trades to plot</div>';
+  const w=680,h=180,pad=8;
+  const mn=Math.min(...vals), mx=Math.max(...vals), rng=(mx-mn)||1;
+  const pts = vals.map((v,i)=>{
+    const x = pad + i*(w-2*pad)/(vals.length-1);
+    const y = h-pad - (v-mn)/rng*(h-2*pad);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  const up = vals[vals.length-1]>=vals[0];
+  const col = up?'#34d39a':'#ff6b7a';
+  const base = (h-pad - (1-mn)/rng*(h-2*pad)).toFixed(1);   // equity=1 baseline
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
+    <line x1="${pad}" y1="${base}" x2="${w-pad}" y2="${base}" stroke="#2a3346" stroke-dasharray="3 3"/>
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/>
+  </svg>`;
 }
 async function loadMarkets(){
   const body = document.getElementById('mktbody');
