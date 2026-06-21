@@ -16,13 +16,16 @@ from langchain_core.tools import StructuredTool
 
 from polyagents import mcp_server
 from polyagents.default_config import DEFAULT_CONFIG
+from polyagents.mcp_servers import compliance as compliance_mcp
 from polyagents.mcp_servers import crypto as crypto_mcp
+from polyagents.mcp_servers import polydata as polydata_mcp
 
 _SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills"
 
 # Reuse the exact MCP tool functions so the web agent and an Alpha DevBox host
-# expose an identical surface (one source of truth). Cross-market (crypto) tools
-# are included so the cross-market-arb skill can compare spot vs Polymarket.
+# expose an identical surface (one source of truth). The crypto / polydata /
+# compliance tools are bound too, so the cross-market-arb, research and
+# risk-check skills work in chat.
 _TOOL_FUNCS = [
     mcp_server.scan_markets,
     mcp_server.market_snapshot,
@@ -36,6 +39,12 @@ _TOOL_FUNCS = [
     crypto_mcp.crypto_price,
     crypto_mcp.crypto_24h,
     crypto_mcp.crypto_klines,
+    polydata_mcp.list_events,
+    polydata_mcp.recent_trades,
+    polydata_mcp.price_history,
+    compliance_mcp.verify_trade_math,
+    compliance_mcp.audit_log,
+    compliance_mcp.risk_limits,
 ]
 
 
@@ -60,7 +69,7 @@ def list_mcp_servers() -> list[dict]:
         ("compliance", "trade-math verification + audit log + risk limits", compliance.mcp, "stdio"),
         ("qlib-backtest", "factor → model → backtest over the SQLite history (qlib venv)", qlib_backtest.mcp, "qlib-venv"),
     ]
-    bound = {"polyagents", "crypto"}                    # what the chat agent binds
+    bound = {"polyagents", "crypto", "polydata", "compliance"}   # what the chat agent binds
     out: list[dict] = []
     for sid, desc, m, transport in local:
         try:

@@ -9,7 +9,8 @@ def test_build_tools_exposes_the_trading_surface():
     for expected in ("scan_markets", "market_snapshot", "size_position",
                      "paper_execute", "portfolio_status", "settle_markets",
                      "pnl_report", "evaluation_report",
-                     "crypto_price", "crypto_24h", "crypto_klines"):
+                     "crypto_price", "crypto_24h", "crypto_klines",
+                     "list_events", "recent_trades", "verify_trade_math"):
         assert expected in names
 
 
@@ -45,6 +46,10 @@ def test_mcp_registry_lists_servers_with_tools():
             "qlib-backtest", "polymarket-docs"} <= ids
     crypto = next(s for s in servers if s["id"] == "crypto")
     assert "crypto_price" in crypto["tools"] and crypto["in_chat"] is True
+    polydata = next(s for s in servers if s["id"] == "polydata")
+    assert polydata["in_chat"] is True
+    docs = next(s for s in servers if s["id"] == "polymarket-docs")
+    assert docs["in_chat"] is False
 
 
 def test_server_app_has_routes():
